@@ -1,4 +1,4 @@
-function akms2 = drag(params, X)
+function akms2 = cowell_drag(params, X, t)
     h = vecnorm(X(1:3)) - params.Re;
     rhokgm3 = atmosphere(h);
     v_air = cross([0;0;params.omega_earth], X(1:3)); %km/s

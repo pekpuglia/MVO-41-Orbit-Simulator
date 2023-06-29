@@ -11,7 +11,7 @@ end
 function Xdot = Xdot(t, X, accs, params)
     acc = [0;0;0];
     for i = 1:length(accs)
-        acc = acc + accs{i}(params{i}, X);
+        acc = acc + accs{i}(params{i}, X, t);
     end
     Xdot = [
         X(4:6)

@@ -1,4 +1,4 @@
-function a = j2(params, X)
+function a = cowell_j2(params, X, t)
     a = internal_j2(X(1:3), params.J2, params.mu, params.Re);
 end
 

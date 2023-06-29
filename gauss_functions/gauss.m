@@ -1,9 +1,8 @@
-function [t, data] = cowell(a0, e0, i0, RA0, w0, TA0, mu, P, tmax, terminate_fn, accs, params)
+function [t, data] = gauss(a0, e0, i0, RA0, w0, TA0, mu, P, tmax, accs, params)
     options = odeset( ...
         'RelTol',1e-13, ...
         'AbsTol',1e-13, ...
-        'InitialStep',P/1000, ...
-        'Events', terminate_fn);
+        'InitialStep',P/1000);
     [t, data] = ode89(@(t, X) Xdot(t, X, mu, accs, params), ...
         [0 tmax], [a0, e0, i0, RA0, w0, TA0], options);
 end
@@ -24,32 +23,24 @@ function Xdot = Xdot(t, X, mu, accs, params)
         acc = acc + accs{i}(params{i}, [r_vec;v_vec]);
     end
 
-    u = TA + w;
+   u = w + TA;
 
-        
-    cu = cosd(u); su = sind(u);
-    cW = cosd(RA); sW = sind(RA);
-    ci = cosd(i); si = sind(i);
-    Q = [cW*cu-sW*ci*su, -cW*su-sW*ci*cu, sW*si;
-        sW*cu+cW*ci*su, -sW*su+cW*ci*cu, -cW*si;
-        si*su, si*cu, ci;];
-    Q = Q';
+   Qxr = [ -sind(RA)*cosd(i)*sind(u)+cosd(RA)*cosd(u) cosd(RA)*cosd(i)*sind(u)+sind(RA)*cosd(u) sind(i)*sind(u);
+            -sind(RA)*cosd(i)*cosd(u)-cosd(RA)*sind(u) cosd(RA)*cosd(i)*cosd(u)-sind(RA)*sind(u) sind(i)*cosd(u);
+            sind(RA)*sind(i) -cosd(RA)*sind(i) cosd(i)];
 
     r = vecnorm(r_vec);
-    v = vecnorm(v_vec);
-    h = sqrt(mu*a*(1-e^2));
+    h = vecnorm(cross(r_vec, v_vec));
 
-    gamma = pi/2 - acos(dot(r_vec,v_vec)/(r*v));
+    accRSW = Qxr * acc;
 
-    
-
-    adot = 2 * a^2 * v * T / mu;
-    edot = (1/v) * (2*(e+cosd(TA))*T + r*sind(TA)/a * N);
-    idot = (180/pi) * r*cosd(w+TA) / h * W;
-    RAdot = (180/pi) * r*sind(w+TA) / h / sind(i) * W;
-    wdot = -(1/v/e) * (2*sind(TA)*T - (2*e + r*cosd(TA)/a) * N) ...
-        - r*sind(w+TA) * cosd(i) / h / sind(i) * W;
-    TAdot = (180/pi) * h/r^2 - (1/v/e) * (2*sind(TA)*T - (2*e + r*cosd(TA)/a) * N);
+    R = accRSW(1); S = accRSW(2); W = accRSW(3);
+    adot = 2*sqrt(a^3 / (mu * (1 - e^2))) * (e*R*sind(TA) + S*(1 + e*cosd(TA)));
+    edot = (h/mu) * sind(TA)*R + (1/(mu*h)) * ((h^2+mu*r)*cosd(TA)+mu*e*r)*S;
+    idot = (180/pi) * r*cosd(u) * W/h;
+    RAdot = (180/pi)*r*sind(u)*W/(h*sind(i));
+    wdot = (180/pi) * (((-1/(e*h))*((h^2*cosd(TA)*R/mu) - ((r+(h^2/mu))*sind(TA)*S))) - r*sind(u)*W/(h*tand(i)));  
+    TAdot = (180/pi) * ((h/r^2) + (1/(e*h))*(h^2*cosd(TA)*R/mu - ((h^2/mu)+r)*sind(TA)*S));
 
     Xdot = [
         adot
@@ -60,65 +51,3 @@ function Xdot = Xdot(t, X, mu, accs, params)
         TAdot
         ];
 end
-
-function elem_dot = integrate_gauss(t, elem)
-%       elem = a0,e0,W0,i0,w0,M0
-        a = elem(1);
-        e = elem(2);
-        W = elem(3);
-        i = elem(4);
-        w = elem(5);
-        M = elem(6); % radian
-        E = kepler_E(e, M); % radian
-        nu = 2*atand(tan(E/2)*sqrt((1+e)/(1-e))); %degrees
-        u = w + nu;
-        y = zeros(6,1);
-        cu = cosd(u); su = sind(u);
-        cW = cosd(W); sW = sind(W);
-        ci = cosd(i); si = sind(i);
-        Q = [cW*cu-sW*ci*su, -cW*su-sW*ci*cu, sW*si;
-            sW*cu+cW*ci*su, -sW*su+cW*ci*cu, -cW*si;
-            si*su, si*cu, ci;];
-        Q = Q';
-        
-        [y(1:3),y(4:6)] = elem_to_ECI(mu,elem);
-        r3 = sqrt(y(1)^2 + y(2)^2 + y(3)^2)^3;
-        r = sqrt(y(1)^2 + y(2)^2 + y(3)^2);
-        j2_potential = [J2*(mu*y(1)/r3)(3/2)(RE/r)^2*(5*(y(3)/r)^2-1);
-                        J2*(mu*y(2)/r3)(3/2)(RE/r)^2*(5*(y(3)/r)^2-1);
-                        J2*(mu*y(3)/r3)(3/2)(RE/r)^2*(5*(y(3)/r)^2-3);];
-            
-        rho = atmosphere(r - RE); %Air density from US Standard Model (kf/m^3)
-        Vrel = y(4:6) - cross(wE,y(1:3)); %Velocity relative to the atmosphere (km/s)
-        vrel = norm(Vrel); %Speed relative to the atmosphere (km/s)
-        uv = Vrel/vrel; %Relative velocity unit vector
-        CD = 2.2;
-        drag = [-CD*pi/4*(1^2)/100*rho*(1000*vrel)^2/2*uv/1000;]; 
-        vel_rtn = Q*y(4:6);
-        y_dot_rtn = Q*(j2_potential + drag);
-        R = y_dot_rtn(1);
-        T = y_dot_rtn(2);
-        N = y_dot_rtn(3);
-        a_dot = 2*sqrt(a^3/(mu*(1-e^2)))(e*R*sind(nu)+T(1+e*cosd(nu)));
-        e_dot = sqrt(a*(1-e^2)/mu)(R*sind(nu)+T(cosd(nu)+cos(E)));
-        W_dot = (180/pi)sqrt(a(1-e^2)/mu)(N*sind(w+nu))/(sind(i)(1+e*cosd(nu)));
-        i_dot = (180/pi)sqrt(a(1-e^2)/mu)*(N*cosd(w+nu))/(1+e*cosd(nu));
-        w_dot = -W_dot*cosd(i) + (180/pi)sqrt(a(1-e^2)/(mu*e^2))(-R*cosd(nu)+T(2+e*cosd(nu))*sind(nu)/(1+e*cosd(nu)));
-        E_dot = (vel_rtn(1) - a_dot*(1-e*cos(E))+a*e_dot*cos(E))/(a*e*sin(E));
-        M_dot = E_dot - e*E_dot*cos(E) - e_dot*sin(E);
-        elem_dot = [a_dot; e_dot; W_dot; i_dot; w_dot; M_dot;];
-    end
-    
-    function E = kepler_E(e, M)
-        error = 1.e-8;
-        if M < pi
-            E = M + e/2;
-        else
-            E = M - e/2;
-        end
-        ratio = 1;
-        while abs(ratio) > error
-            ratio = (E - e*sin(E) - M)/(1 - e*cos(E));
-            E = E - ratio;
-        end
-    end

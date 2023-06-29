@@ -1,4 +1,4 @@
-function a = sph_grav(params, X)
+function a = cowell_sph_grav(params, X, t)
     a = internal_sph_grav(params.mu, X(1:3));
 end
 
