@@ -10,7 +10,7 @@
 % end
 
 % Plota parâmetros orbitais
-function gauss_plots(t,params,mu)
+function gauss_plots(t,params,mu, Re)
     a = params(:,1);
     e = params(:,2);
     i = params(:,3);
@@ -110,4 +110,20 @@ function gauss_plots(t,params,mu)
 %     xlabel('Tempo (dias)');
 %     ylabel('Ângulo (deg)');
 %     xlim([t(1) t(end)]);
+
+    pos = [];
+    for i = 1:length(t)
+        [r, v] = rv_from_orb_elems(params(i, 1), params(i, 2), params(i, 3), params(i, 4), params(i, 5), params(i, 6), mu);
+        pos = [pos;r'];
+    end
+
+    colors = t;
+    figure
+    colormap(hsv)
+    [Xs, Ys, Zs] = sphere;
+    surf(Re*Xs, Re*Ys, Re*Zs, 'FaceColor','blue', 'FaceAlpha', 0)
+    hold on
+    %https://www.mathworks.com/matlabcentral/answers/254696-how-to-assign-gradual-color-to-a-3d-line-based-on-values-of-another-vector
+    patch([pos(:,1); nan], [pos(:,2); nan], [pos(:,3); nan], [colors;nan], 'FaceColor', 'none', 'EdgeColor', 'interp', 'LineWidth', 3)
+    axis equal
 end
