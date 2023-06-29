@@ -49,3 +49,4 @@ plots("testecowell", t, data, Re, mu)
     {@cowell_drag}, ...
     {drag_p});
 %%
+gauss_plots(t, data, mu)
